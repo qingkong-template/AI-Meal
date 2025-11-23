@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>今天公司食堂吃什么？</title>
+    <title>今天食堂吃什么？</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap');
@@ -321,6 +321,23 @@
                         <p class="text-xs text-subtext">设置为 0 则不开启避让功能</p>
                     </div>
 
+                    <!-- Added Avoid Days Setting for Recommended but Unconfirmed Dishes -->
+                    <div class="space-y-2 pt-4 border-t border-border">
+                        <label class="block text-sm font-medium text-zinc-900 dark:text-white">推荐过的菜品避让天数</label>
+                        <div class="flex items-center gap-4">
+                            <input 
+                                type="number" 
+                                id="recommendedAvoidDaysInput" 
+                                min="0" 
+                                max="30"
+                                class="w-24 bg-input-bg border border-border rounded-lg px-4 py-2 text-zinc-900 dark:text-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary text-center font-medium"
+                                value="0"
+                            >
+                            <span class="text-subtext text-sm">天内不再推荐出现过的菜品</span>
+                        </div>
+                        <p class="text-xs text-subtext">默认为 0（不过滤推荐过的菜品），设置天数后开始过滤</p>
+                    </div>
+
                     <div class="pt-4 border-t border-border">
                         <h3 class="text-sm font-medium text-zinc-900 dark:text-white mb-3">功能说明</h3>
                         <ul class="space-y-2 text-sm text-subtext">
@@ -372,7 +389,9 @@
             recommendationCount: 0,
             lastMood: '',
             history: [], // { dish: string, timestamp: number }
-            avoidDays: 7
+            avoidDays: 7,
+            recommendedHistory: [], // { dish: string, timestamp: number }
+            recommendedAvoidDays: 0
         };
 
         // Initialization
@@ -469,6 +488,17 @@
             }
             document.getElementById('avoidDaysInput').value = state.avoidDays;
 
+            const savedRecommendedHistory = localStorage.getItem('recommended-history');
+            if (savedRecommendedHistory) {
+                state.recommendedHistory = JSON.parse(savedRecommendedHistory);
+            }
+
+            const savedRecommendedAvoidDays = localStorage.getItem('recommended-avoid-days');
+            if (savedRecommendedAvoidDays !== null) {
+                state.recommendedAvoidDays = parseInt(savedRecommendedAvoidDays, 10);
+            }
+            document.getElementById('recommendedAvoidDaysInput').value = state.recommendedAvoidDays;
+
             updateAIStatusUI();
         }
 
@@ -528,6 +558,10 @@
             state.avoidDays = isNaN(days) ? 7 : days;
             localStorage.setItem('avoid-days', state.avoidDays);
             
+            const recDays = parseInt(document.getElementById('recommendedAvoidDaysInput').value, 10);
+            state.recommendedAvoidDays = isNaN(recDays) ? 0 : recDays;
+            localStorage.setItem('recommended-avoid-days', state.recommendedAvoidDays);
+            
             if (inputKey) {
                 localStorage.setItem('openrouter-api-key', inputKey);
                 state.apiKey = inputKey;
@@ -545,7 +579,8 @@
         function cancelSettings() {
             const currentKey = state.apiKey || '';
             document.getElementById('apiKeyInput').value = currentKey;
-            document.getElementById('avoidDaysInput').value = state.avoidDays; // Reset input
+            document.getElementById('avoidDaysInput').value = state.avoidDays;
+            document.getElementById('recommendedAvoidDaysInput').value = state.recommendedAvoidDays;
             showSetup();
         }
 
@@ -674,11 +709,20 @@
                 .map(item => item.dish);
         }
 
+        function getRecentRecommendedDishes() {
+            if (state.recommendedAvoidDays <= 0) return [];
+            
+            const cutoff = Date.now() - (state.recommendedAvoidDays * 24 * 60 * 60 * 1000);
+            return state.recommendedHistory
+                .filter(item => item.timestamp > cutoff)
+                .map(item => item.dish);
+        }
+
         async function getRecommendation(mood) {
             document.getElementById('moodSelection').classList.add('hidden');
             document.getElementById('recommendationCard').classList.add('hidden');
             document.getElementById('loadingCard').classList.remove('hidden');
-            document.getElementById('historyWarning').classList.add('hidden'); // Reset warning
+            document.getElementById('historyWarning').classList.add('hidden');
             
             document.getElementById('loadingText').textContent = state.aiEnabled ? "AI 正在思考中..." : "智能推荐中...";
 
@@ -686,22 +730,25 @@
                 let result;
                 
                 const recentHistory = getRecentHistoryDishes();
+                const recentRecommended = getRecentRecommendedDishes();
                 
-                // Case 1 & 2: AI Enabled
                 if (state.aiEnabled && state.apiKey) {
-                     // Case 1: No Menu -> Generic Recommendation
                      if (state.menuItems.length === 0) {
-                        result = await getAIGenericRecommendation(mood, recentHistory);
+                        result = await getAIGenericRecommendation(mood, recentHistory, recentRecommended);
                      } 
-                     // Case 2: Has Menu -> AI Menu Recommendation
                      else {
-                        result = await getAIRecommendation(mood, recentHistory);
+                        result = await getAIRecommendation(mood, recentHistory, recentRecommended);
                      }
                 } 
-                // Case 3: Local Random
                 else {
-                    result = await getLocalRecommendation(mood, recentHistory);
+                    result = await getLocalRecommendation(mood, recentHistory, recentRecommended);
                 }
+
+                state.recommendedHistory.push({
+                    dish: result.dish,
+                    timestamp: Date.now()
+                });
+                localStorage.setItem('recommended-history', JSON.stringify(state.recommendedHistory));
 
                 showResult(result, mood);
                 
@@ -717,10 +764,12 @@
             }
         }
 
-        async function getAIRecommendation(mood, recentHistory) {
+        async function getAIRecommendation(mood, recentHistory, recentRecommended) {
             const moodConfig = MOODS[mood] || MOODS['random'];
-            const historyText = recentHistory.length > 0 
-                ? `请避开以下最近吃过的菜品：${recentHistory.join(', ')}。` 
+            
+            const allAvoid = [...recentHistory, ...recentRecommended];
+            const historyText = allAvoid.length > 0 
+                ? `请避开以下最近吃过或推荐过的菜品：${allAvoid.join(', ')}。` 
                 : "";
 
             const prompt = `
@@ -739,10 +788,12 @@
             return callAI(prompt);
         }
 
-        async function getAIGenericRecommendation(mood, recentHistory) {
+        async function getAIGenericRecommendation(mood, recentHistory, recentRecommended) {
             const moodConfig = MOODS[mood] || MOODS['random'];
-            const historyText = recentHistory.length > 0 
-                ? `请避开以下最近吃过的菜品：${recentHistory.join(', ')}。` 
+            
+            const allAvoid = [...recentHistory, ...recentRecommended];
+            const historyText = allAvoid.length > 0 
+                ? `请避开以下最近吃过或推荐过的菜品：${allAvoid.join(', ')}。` 
                 : "";
 
             const prompt = `
@@ -793,18 +844,18 @@
             return JSON.parse(content.trim());
         }
 
-        function getLocalRecommendation(mood, recentHistory) {
+        function getLocalRecommendation(mood, recentHistory, recentRecommended) {
             return new Promise(resolve => {
                 setTimeout(() => {
                     let candidates = state.menuItems;
                     
-                    // Filter out recent history
-                    if (recentHistory.length > 0) {
-                        const filtered = candidates.filter(dish => !recentHistory.includes(dish));
+                    // Filter out both recent history and recent recommended
+                    const allAvoid = [...recentHistory, ...recentRecommended];
+                    if (allAvoid.length > 0) {
+                        const filtered = candidates.filter(dish => !allAvoid.includes(dish));
                         if (filtered.length > 0) {
                             candidates = filtered;
                         } else {
-                            // Warn user if all choices are exhausted
                             document.getElementById('historyWarning').classList.remove('hidden');
                         }
                     }

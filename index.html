@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>今天食堂吃什么？</title>
+    <title>今天公司食堂吃什么？</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap');
@@ -73,6 +73,27 @@
             .mood-btn {
                 min-height: 100px;
             }
+        }
+    </style>
+    <!-- Added Toast Styles -->
+    <style>
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 9999px;
+            opacity: 0;
+            transition: all 0.3s ease;
+            z-index: 50;
+            pointer-events: none;
+        }
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
         }
     </style>
     <script>
@@ -157,6 +178,12 @@
                 <div class="p-8 text-center border-b border-border bg-gradient-to-b from-transparent to-zinc-50/50 dark:to-zinc-900/50">
                     <div id="dishEmoji" class="text-6xl mb-4 animate-bounce">🍽️</div>
                     <h2 id="dishName" class="text-3xl font-bold text-primary mb-3"></h2>
+                    
+                    <!-- Added History Warning Badge -->
+                    <div id="historyWarning" class="hidden mb-2">
+                        <span class="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">⚠️ 历史菜品耗尽，随机推荐</span>
+                    </div>
+
                     <!-- Unselected Moods for Quick Switch -->
                      <div class="flex flex-col items-center justify-center gap-3 mt-6 pt-4 border-t border-border/50">
                         <p class="text-xs text-subtext font-medium">不太满意？试试其他口味：</p>
@@ -179,7 +206,12 @@
                     </div>
                 </div>
 
-                <div class="p-4 bg-surface border-t border-border">
+                <div class="p-4 bg-surface border-t border-border flex flex-col gap-3">
+                    <!-- Added Confirm Button and rearranged buttons -->
+                    <button onclick="confirmChoice()" class="w-full bg-primary hover:bg-primary-hover text-white font-semibold py-3 rounded-lg transition-all shadow-lg shadow-orange-900/20 flex items-center justify-center gap-2">
+                        <span>😋</span> 决定吃这个
+                    </button>
+
                     <button onclick="regenerate()" id="regenerateBtn" class="w-full bg-transparent hover:bg-mood-hover text-zinc-600 dark:text-zinc-300 hover:text-primary border border-border hover:border-primary font-semibold py-3 rounded-lg transition-all flex items-center justify-center gap-2">
                         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/></svg>
                         <span id="regenerateBtnText">换一个推荐</span>
@@ -242,53 +274,81 @@
             </div>
 
             <div class="bg-surface border border-border rounded-xl p-6 space-y-6 shadow-xl transition-colors duration-300">
-                <div class="space-y-2">
-                    <label class="block text-sm font-medium text-zinc-900 dark:text-white">OpenRouter API Key</label>
-                    <input 
-                        type="text" 
-                        id="apiKeyInput" 
-                        class="w-full bg-input-bg border border-border rounded-lg px-4 py-3 text-zinc-900 dark:text-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all font-mono text-sm"
-                        placeholder="sk-or-v1-..."
-                    >
-                    
-                    <!-- Key Actions & Info -->
-                    <div class="flex flex-col gap-2 mt-2">
-                         <p class="text-xs text-subtext">
-                            配置 API Key 以启用 AI 智能推荐。
-                            <!--<a href="https://openrouter.ai" target="_blank" class="text-primary hover:underline ml-1">获取 Key</a>-->
-                        </p>
+                <div class="space-y-4">
+                    <!-- API Key Section -->
+                    <div class="space-y-2">
+                        <label class="block text-sm font-medium text-zinc-900 dark:text-white">OpenRouter API Key</label>
+                        <input 
+                            type="text" 
+                            id="apiKeyInput" 
+                            class="w-full bg-input-bg border border-border rounded-lg px-4 py-3 text-zinc-900 dark:text-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all font-mono text-sm"
+                            placeholder="sk-or-v1-..."
+                        >
                         
-                        <!-- Example Key Box -->
-                        <div class="bg-gray-100 dark:bg-zinc-800/50 border border-border rounded p-3 text-xs break-all">
-                            <span class="text-subtext block mb-1 font-medium">测试用 Key (点击复制):</span>
-                            <code 
-                                class="text-zinc-600 dark:text-zinc-400 font-mono cursor-pointer hover:text-primary transition-colors select-all"
-                                onclick="copyTestKey(this)"
-                                title="点击复制"
-                            >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</code>
+                        <!-- Key Actions & Info -->
+                        <div class="flex flex-col gap-2 mt-2">
+                             <p class="text-xs text-subtext">
+                                配置 API Key 以启用 AI 智能推荐。
+                                <a href="https://openrouter.ai" target="_blank" class="text-primary hover:underline ml-1">获取 Key</a>
+                            </p>
+                            
+                            <!-- Example Key Box -->
+                            <div class="bg-gray-100 dark:bg-zinc-800/50 border border-border rounded p-3 text-xs break-all">
+                                <span class="text-subtext block mb-1 font-medium">测试用 Key (点击复制):</span>
+                                <code 
+                                    class="text-zinc-600 dark:text-zinc-400 font-mono cursor-pointer hover:text-primary transition-colors select-all"
+                                    onclick="copyTestKey(this)"
+                                    title="点击复制"
+                                >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</code>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                <div class="pt-4 border-t border-border">
-                    <h3 class="text-sm font-medium text-zinc-900 dark:text-white mb-3">功能说明</h3>
-                    <ul class="space-y-2 text-sm text-subtext">
-                        <li class="flex items-start gap-2">
-                            <span class="text-primary mt-1">•</span>
-                            <span>AI 会根据你的心情和菜单内容，智能推荐最合适的菜品</span>
-                        </li>
-                         <li class="flex items-start gap-2">
-                            <span class="text-primary mt-1">•</span>
-                            <span>如果未输入菜单但配置了Key，AI将推荐通用工作餐</span>
-                        </li>
-                    </ul>
-                </div>
+                    <!-- Added Avoid Days Setting -->
+                    <div class="space-y-2 pt-4 border-t border-border">
+                        <label class="block text-sm font-medium text-zinc-900 dark:text-white">重复菜品避让天数</label>
+                        <div class="flex items-center gap-4">
+                            <input 
+                                type="number" 
+                                id="avoidDaysInput" 
+                                min="0" 
+                                max="30"
+                                class="w-24 bg-input-bg border border-border rounded-lg px-4 py-2 text-zinc-900 dark:text-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary text-center font-medium"
+                                value="7"
+                            >
+                            <span class="text-subtext text-sm">天内不再推荐已确认的菜品</span>
+                        </div>
+                        <p class="text-xs text-subtext">设置为 0 则不开启避让功能</p>
+                    </div>
 
-                <button onclick="saveSettings()" class="w-full bg-primary hover:bg-primary-hover text-white font-semibold py-3 rounded-lg transition-all shadow-lg shadow-orange-900/20">
-                    保存设置
-                </button>
+                    <div class="pt-4 border-t border-border">
+                        <h3 class="text-sm font-medium text-zinc-900 dark:text-white mb-3">功能说明</h3>
+                        <ul class="space-y-2 text-sm text-subtext">
+                            <li class="flex items-start gap-2">
+                                <span class="text-primary mt-1">•</span>
+                                <span>AI 会根据你的心情和菜单内容，智能推荐最合适的菜品</span>
+                            </li>
+                             <li class="flex items-start gap-2">
+                                <span class="text-primary mt-1">•</span>
+                                <span>如果未输入菜单但配置了Key，AI将推荐通用工作餐</span>
+                            </li>
+                            <!-- Added history explanation -->
+                             <li class="flex items-start gap-2">
+                                <span class="text-primary mt-1">•</span>
+                                <span>点击"决定吃这个"会记录历史，避免近期重复推荐</span>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <button onclick="saveSettings()" class="w-full bg-primary hover:bg-primary-hover text-white font-semibold py-3 rounded-lg transition-all shadow-lg shadow-orange-900/20">
+                        保存设置
+                    </button>
+                </div>
             </div>
         </div>
+        
+        <!-- Added Toast Element -->
+        <div id="toast" class="toast">已加入用餐历史，下次为您避开该菜品 ✅</div>
 
     </div>
 
@@ -310,7 +370,9 @@
             apiKey: '',
             aiEnabled: false,
             recommendationCount: 0,
-            lastMood: ''
+            lastMood: '',
+            history: [], // { dish: string, timestamp: number }
+            avoidDays: 7
         };
 
         // Initialization
@@ -396,6 +458,17 @@
                 state.recommendationCount = parseInt(savedCount, 10);
             }
 
+            const savedHistory = localStorage.getItem('dinner-history');
+            if (savedHistory) {
+                state.history = JSON.parse(savedHistory);
+            }
+
+            const savedAvoidDays = localStorage.getItem('avoid-days');
+            if (savedAvoidDays !== null) {
+                state.avoidDays = parseInt(savedAvoidDays, 10);
+            }
+            document.getElementById('avoidDaysInput').value = state.avoidDays;
+
             updateAIStatusUI();
         }
 
@@ -451,6 +524,10 @@
         function saveSettings() {
             const inputKey = document.getElementById('apiKeyInput').value.trim();
             
+            const days = parseInt(document.getElementById('avoidDaysInput').value, 10);
+            state.avoidDays = isNaN(days) ? 7 : days;
+            localStorage.setItem('avoid-days', state.avoidDays);
+            
             if (inputKey) {
                 localStorage.setItem('openrouter-api-key', inputKey);
                 state.apiKey = inputKey;
@@ -468,6 +545,7 @@
         function cancelSettings() {
             const currentKey = state.apiKey || '';
             document.getElementById('apiKeyInput').value = currentKey;
+            document.getElementById('avoidDaysInput').value = state.avoidDays; // Reset input
             showSetup();
         }
 
@@ -479,7 +557,7 @@
         function showSettings() {
             const displayKey = state.apiKey || '';
             document.getElementById('apiKeyInput').value = displayKey;
-            switchView('settingsView');
+            showView('settingsView'); // Changed from switchView to showView for clarity
         }
 
         function showDecision() {
@@ -495,12 +573,12 @@
                 badge.classList.add('hidden');
             }
 
-            switchView('decisionView');
+            showView('decisionView'); // Changed from switchView
             updateCountDisplay();
             checkRecommendationLimit();
         }
 
-        function switchView(viewId) {
+        function switchView(viewId) { // Kept for backward compatibility/internal use if needed
             ['setupView', 'settingsView', 'decisionView'].forEach(id => {
                 const el = document.getElementById(id);
                 if (id === viewId) {
@@ -509,6 +587,13 @@
                     el.classList.add('hidden');
                 }
             });
+        }
+
+        function showView(viewId) { // New explicit show function
+             document.getElementById('decisionView').classList.add('hidden');
+             document.getElementById('setupView').classList.add('hidden');
+             document.getElementById('settingsView').classList.add('hidden');
+             document.getElementById(viewId).classList.remove('hidden');
         }
 
         // Core Logic
@@ -580,30 +665,42 @@
             getRecommendation(state.lastMood);
         }
 
+        function getRecentHistoryDishes() {
+            if (state.avoidDays <= 0) return [];
+            
+            const cutoff = Date.now() - (state.avoidDays * 24 * 60 * 60 * 1000);
+            return state.history
+                .filter(item => item.timestamp > cutoff)
+                .map(item => item.dish);
+        }
+
         async function getRecommendation(mood) {
             document.getElementById('moodSelection').classList.add('hidden');
             document.getElementById('recommendationCard').classList.add('hidden');
             document.getElementById('loadingCard').classList.remove('hidden');
+            document.getElementById('historyWarning').classList.add('hidden'); // Reset warning
             
             document.getElementById('loadingText').textContent = state.aiEnabled ? "AI 正在思考中..." : "智能推荐中...";
 
             try {
                 let result;
                 
+                const recentHistory = getRecentHistoryDishes();
+                
                 // Case 1 & 2: AI Enabled
                 if (state.aiEnabled && state.apiKey) {
                      // Case 1: No Menu -> Generic Recommendation
                      if (state.menuItems.length === 0) {
-                        result = await getAIGenericRecommendation(mood);
+                        result = await getAIGenericRecommendation(mood, recentHistory);
                      } 
                      // Case 2: Has Menu -> AI Menu Recommendation
                      else {
-                        result = await getAIRecommendation(mood);
+                        result = await getAIRecommendation(mood, recentHistory);
                      }
                 } 
                 // Case 3: Local Random
                 else {
-                    result = await getLocalRecommendation(mood);
+                    result = await getLocalRecommendation(mood, recentHistory);
                 }
 
                 showResult(result, mood);
@@ -620,11 +717,16 @@
             }
         }
 
-        async function getAIRecommendation(mood) {
+        async function getAIRecommendation(mood, recentHistory) {
             const moodConfig = MOODS[mood] || MOODS['random'];
+            const historyText = recentHistory.length > 0 
+                ? `请避开以下最近吃过的菜品：${recentHistory.join(', ')}。` 
+                : "";
+
             const prompt = `
                 菜单：${JSON.stringify(state.menuItems)}
                 用户心情：${moodConfig.text}
+                ${historyText}
                 
                 请从菜单中选择一道最适合的菜。
                 返回 JSON 格式：
@@ -637,12 +739,17 @@
             return callAI(prompt);
         }
 
-        async function getAIGenericRecommendation(mood) {
+        async function getAIGenericRecommendation(mood, recentHistory) {
             const moodConfig = MOODS[mood] || MOODS['random'];
+            const historyText = recentHistory.length > 0 
+                ? `请避开以下最近吃过的菜品：${recentHistory.join(', ')}。` 
+                : "";
+
             const prompt = `
                 场景：中国公司员工的工作餐。
                 目前没有具体菜单。
                 用户心情：${moodConfig.text}
+                ${historyText}
                 
                 请推荐一道常见的、适合中国职场人的${moodConfig.text}工作午餐（例如：鱼香肉丝盖饭、麻辣烫、沙县小吃等）。
                 返回 JSON 格式：
@@ -677,19 +784,32 @@
             const data = await response.json();
             let content = data.choices[0].message.content;
             // Clean markdown code blocks if present
-            if (content.includes('```json')) {
-                content = content.split('```json')[1].split('```')[0];
-            } else if (content.includes('```')) {
-                content = content.split('```')[1].split('```')[0];
+            if (content.includes('\`\`\`json')) {
+                content = content.split('\`\`\`json')[1].split('\`\`\`')[0];
+            } else if (content.includes('\`\`\`')) {
+                content = content.split('\`\`\`')[1].split('\`\`\`')[0];
             }
             
             return JSON.parse(content.trim());
         }
 
-        function getLocalRecommendation(mood) {
+        function getLocalRecommendation(mood, recentHistory) {
             return new Promise(resolve => {
                 setTimeout(() => {
-                    const dish = state.menuItems[Math.floor(Math.random() * state.menuItems.length)];
+                    let candidates = state.menuItems;
+                    
+                    // Filter out recent history
+                    if (recentHistory.length > 0) {
+                        const filtered = candidates.filter(dish => !recentHistory.includes(dish));
+                        if (filtered.length > 0) {
+                            candidates = filtered;
+                        } else {
+                            // Warn user if all choices are exhausted
+                            document.getElementById('historyWarning').classList.remove('hidden');
+                        }
+                    }
+
+                    const dish = candidates[Math.floor(Math.random() * candidates.length)];
                     const reasons = [
                         "这道菜看起来就很下饭！",
                         "相信直觉，就它了！",
@@ -722,6 +842,8 @@
             document.getElementById('dishName').textContent = result.dish;
             document.getElementById('reasonText').textContent = result.reason;
             document.getElementById('encouragementText').innerHTML = `<span>✨</span> ${result.quote}`;
+            
+            document.getElementById('recommendationCard').dataset.currentDish = result.dish;
 
             // Generate Alternative Chips
             const chipsContainer = document.getElementById('alternativeMoods');
@@ -740,20 +862,52 @@
             const btn = document.getElementById('regenerateBtn');
             const btnText = document.getElementById('regenerateBtnText');
             
-            if (state.recommendationCount + 1 > MAX_RECOMMENDATIONS) { // Check if next click exceeds
-                 // Actually, count is already incremented. If current is 3, disable.
-                 // But user can click regenerate if count < 3.
-                 // Let's logic: If count >= 3, next click is blocked by logic, but here we update UI.
-                 // If count is 3, showing result of 3rd try.
+            if (state.recommendationCount + 1 > MAX_RECOMMENDATIONS) { // Check if next click would exceed limit
+                 // This means the current recommendation is the last one allowed.
+                 // The regenerate button should reflect that no more are available.
+                 // The limit message handles hiding mood selection.
             }
 
-            // Note: logic handled in regenerate() checks limit. 
             if (state.recommendationCount >= MAX_RECOMMENDATIONS) {
                  btnText.textContent = "今日次数已用完";
-                 // Don't disable, let logic handle limit message show
+                 // The limit message will be shown, but the card might still be visible.
+                 // The logic in regenerate() prevents further calls anyway.
             } else {
                  btnText.textContent = "再推荐一个";
             }
+        }
+        
+        function confirmChoice() {
+            const card = document.getElementById('recommendationCard');
+            const dish = card.dataset.currentDish;
+            
+            if (!dish) return;
+            
+            // Add to history
+            state.history.push({
+                dish: dish,
+                timestamp: Date.now()
+            });
+            
+            // Save to local storage
+            localStorage.setItem('dinner-history', JSON.stringify(state.history));
+            
+            // Show toast
+            const toast = document.getElementById('toast');
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+            
+            // Reset view after delay
+            setTimeout(() => {
+                // Resetting the card and showing mood selection again makes sense
+                // as the user has "decided" and the cycle can continue if limits allow.
+                card.classList.add('hidden');
+                document.getElementById('moodSelection').classList.remove('hidden');
+                
+                // Optionally, clear the current dish from the card data.
+                card.dataset.currentDish = '';
+
+            }, 1500);
         }
     </script>
 </body>

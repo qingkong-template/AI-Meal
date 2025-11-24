@@ -71,3 +71,12 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 ## 🔗 Links
 
 - GitHub Repository: [https://github.com/qingkong-template/AI-Meal](https://github.com/qingkong-template/AI-Meal)
+
+## ADD API KEY
+
+```
+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
+
+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
+
+```
